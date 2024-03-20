@@ -62,6 +62,16 @@ def plot_spatial_spectrum(spectrum, ground_truth, angle_grids,
     plt.show()
 
 
+# theta is the direction of interest, in radians, and r is our received signal
+def w_mvdr(theta, r, d, Nr):
+   a = np.exp(-2j * np.pi * d * np.arange(Nr) * np.sin(theta)) # steering vector in the desired direction theta
+   a = a.reshape(-1,1) # make into a column vector (size 3x1)
+   R = r @ r.conj().T # Calc covariance matrix. gives a Nr x Nr covariance matrix of the samples
+   Rinv = np.linalg.pinv(R) # 3x3. pseudo-inverse tends to work better/faster than a true inverse
+   w = (Rinv @ a)/(a.conj().T @ Rinv @ a) # MVDR/Capon equation! numerator is 3x3 * 3x1, denominator is 1x3 * 3x3 * 3x1, resulting in a 3x1 weights vector
+   return w
+
+
 sdr = ADI()
 
 freq = int(3e9)
@@ -70,7 +80,11 @@ sdr.set_rf_frequency(freq)
 
 sdr.set_samplerate(30e6)
 
-ula = arrays.UniformLinearArray(m=4, dd=0.062)
+array_element_distance = 0.04996540966
+
+ula = arrays.UniformLinearArray(m=4, dd=array_element_distance)
+
+print(ula.steering_vector)
 
 angle_grids = np.arange(-90, 90, 1)
 
@@ -144,6 +158,13 @@ def update(i):
                                     height=peak_threshold)
     angles = angle_grids[peaks_idx]
     heights = heights["peak_heights"]
+
+
+    w = w_mvdr(angles[0], data, d=array_element_distance, Nr=4)
+
+
+    data_weighted = w.conj().T @ data
+
 
     # set ticks
     grids_min = angle_grids[0]
